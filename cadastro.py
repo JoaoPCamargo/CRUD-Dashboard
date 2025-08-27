@@ -2,13 +2,57 @@ import sqlite3
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import datetime
+from datetime import datetime, date
 from tkcalendar import DateEntry
-from datetime import date
 
 DB_PATH = r"C:\CRUD-Dashboard\hqs.db"  # ajuste para o seu banco
 
-class ComicApp:
+class MainMenu:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Menu Principal")
+        self.root.geometry("300x200")
+
+        # Título principal
+        tk.Label(self.root, text="Bem-vindo ao Chronica Verse", font=("Arial", 16, "bold")).pack(pady=(10, 2))
+
+        # Subtítulo
+        tk.Label(self.root, text="Seu Catálogo de Quadrinhos", font=("Arial", 12, "italic")).pack(pady=(0, 10))
+
+
+        tk.Button(self.root, text="Adicionar Quadrinho", width=20, command=self.open_add).pack(pady=5)
+        tk.Button(self.root, text="Consultar Quadrinhos", width=20, command=self.open_consult).pack(pady=5)
+
+        dash_btn = tk.Button(self.root, text="📊", width=3, command=self.open_dashboard)
+        dash_btn.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
+
+        self.root.mainloop()
+
+    def open_add(self):
+        self.root.withdraw()  # esconde o menu
+        add_window = tk.Toplevel()
+        app = ComicAdd(add_window)  # chama o formulário principal
+        app.set_back_func(lambda: self.back(add_window))
+
+    def open_consult(self):
+        self.root.withdraw()
+        consult_window = tk.Toplevel()
+        ComicConsult(consult_window, back_func=lambda: self.back(consult_window))
+
+    def open_dashboard(self):
+        popup = tk.Toplevel(self.root)
+        popup.title("Dashboard")
+        label = tk.Label(popup, text="Abrindo o dashboard...")
+        label.pack(padx=20, pady=20)
+        popup.update()
+        os.startfile(r"C:\CRUD-Dashboard\DashHQs.pbix")
+        popup.after(1000, popup.destroy)
+
+    def back(self, win):
+        win.destroy()
+        self.root.deiconify()  # mostra o menu novamente
+
+class ComicAdd:
     def __init__(self, root):
         self.root = root
         self.root.title("Cadastro de Quadrinhos")
@@ -77,6 +121,10 @@ class ComicApp:
         # --- BOTÃO DASHBOARD ---
         self.dash_btn = tk.Button(root, text="📊", width=3, command=self.open_dashboard)
         self.dash_btn.grid(row=7, column=1, padx=5, pady=10, sticky="w")
+
+        # --- BOTÃO VOLTAR AO MENU ---
+        self.back_btn = tk.Button(root, text="Voltar ao Menu", command=self.back_to_menu)
+        self.back_btn.grid(row=7, column=2, padx=5, pady=10)    
 
         self.load_publishers()
 
@@ -304,10 +352,8 @@ class ComicApp:
         label = tk.Label(popup, text="Abrindo o dashboard...")
         label.pack(padx=20, pady=20)
         popup.update()
-
         # abre o arquivo do Power BI
         os.startfile(r"C:\CRUD-Dashboard\DashHQs.pbix")
-
         # fecha o popup após 1s
         popup.after(1000, popup.destroy)
 
@@ -319,7 +365,180 @@ class ComicApp:
             else:
                 lbl.config(text="☆", fg="gray")
 
+    def set_back_func(self, func):
+        self.back_func = func
+
+    def back_to_menu(self):
+        if hasattr(self, 'back_func'):
+            self.back_func()
+
+class ComicConsult:
+    def __init__(self, master, back_func):
+        self.master = master
+        self.master.title("Consultar Quadrinhos")
+        self.master.geometry("850x500")
+        self.back_func = back_func
+
+        # --- FRAME DOS BOTÕES SUPERIORES ---
+        btn_frame = tk.Frame(master)
+        btn_frame.pack(pady=5)
+
+        self.back_btn = tk.Button(btn_frame, text="Voltar ao Menu", command=self.voltar)
+        self.back_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.dash_btn = tk.Button(btn_frame, text="📊", width=3, command=self.open_dashboard)
+        self.dash_btn.pack(side=tk.LEFT)
+
+        # --- FRAME DOS FILTROS ---
+        filtros_frame = ttk.LabelFrame(master, text="Filtros")
+        filtros_frame.pack(fill="x", padx=10, pady=5)
+
+        tk.Label(filtros_frame, text="Título:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.entry_titulo = tk.Entry(filtros_frame, width=25)
+        self.entry_titulo.grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(filtros_frame, text="Edição:").grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        self.combo_edicao = ttk.Combobox(filtros_frame, state="readonly", width=10)
+        self.combo_edicao.grid(row=0, column=3, padx=5, pady=5)
+
+        tk.Label(filtros_frame, text="Série:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.combo_serie = ttk.Combobox(filtros_frame, state="readonly", width=25)
+        self.combo_serie.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(filtros_frame, text="Arco:").grid(row=1, column=2, padx=5, pady=5, sticky="w")
+        self.combo_arco = ttk.Combobox(filtros_frame, state="readonly", width=25)
+        self.combo_arco.grid(row=1, column=3, padx=5, pady=5)
+
+        self.btn_pesquisar = ttk.Button(filtros_frame, text="Pesquisar", command=self.apply_filters)
+        self.btn_pesquisar.grid(row=2, column=0, columnspan=4, pady=8)
+
+        # --- TREEVIEW ---
+        self.cols = ("ID", "Título", "Edição", "Data de Leitura", "Editora", "Série", "Arco", "Avaliação")
+        self.tree = ttk.Treeview(master, columns=self.cols, show="headings")
+        for col in self.cols:
+            self.tree.heading(col, text=col, command=lambda c=col: self.sort_column(c, False))
+            self.tree.column(col, width=100)
+        self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        self.sort_orders = {col: False for col in self.cols}
+
+        self.load_filter_options()  # carrega valores únicos para filtros
+        self.load_comics()          # carrega os quadrinhos
+
+    def load_filter_options(self):
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+
+        # edições
+        cur.execute("SELECT DISTINCT issue_number FROM Comic ORDER BY issue_number")
+        edicoes = ["Todos"] + [str(r[0]) for r in cur.fetchall() if r[0] is not None]
+        self.combo_edicao["values"] = edicoes
+        self.combo_edicao.current(0)
+
+        # séries
+        cur.execute("SELECT DISTINCT name FROM Series ORDER BY name")
+        series = ["Todas"] + [r[0] for r in cur.fetchall() if r[0]]
+        self.combo_serie["values"] = series
+        self.combo_serie.current(0)
+
+        # arcos
+        cur.execute("SELECT DISTINCT name FROM Arc ORDER BY name")
+        arcos = ["Todos"] + [r[0] for r in cur.fetchall() if r[0]]
+        self.combo_arco["values"] = arcos
+        self.combo_arco.current(0)
+
+        conn.close()
+
+    def apply_filters(self):
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+
+        query = """
+        SELECT c.comic_id, c.title, c.issue_number, c.reading_date,
+               p.name as publisher, s.name as series, a.name as arc, c.rating
+        FROM Comic c
+        LEFT JOIN Series s ON c.series_id = s.series_id
+        LEFT JOIN Publisher p ON s.publisher_id = p.publisher_id
+        LEFT JOIN Arc a ON c.arc_id = a.arc_id
+        WHERE 1=1
+        """
+        params = []
+
+        titulo = self.entry_titulo.get().strip()
+        if titulo:
+            query += " AND c.title LIKE ?"
+            params.append(f"%{titulo}%")
+
+        edicao = self.combo_edicao.get()
+        if edicao and edicao != "Todos":
+            query += " AND c.issue_number = ?"
+            params.append(edicao)
+
+        serie = self.combo_serie.get()
+        if serie and serie != "Todas":
+            query += " AND s.name = ?"
+            params.append(serie)
+
+        arco = self.combo_arco.get()
+        if arco and arco != "Todos":
+            query += " AND a.name = ?"
+            params.append(arco)
+
+        query += " ORDER BY c.reading_date DESC"
+        cur.execute(query, params)
+        self.rows = cur.fetchall()
+        conn.close()
+
+        self.display_rows(self.rows)
+
+    def load_comics(self):
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        query = """
+        SELECT c.comic_id, c.title, c.issue_number, c.reading_date,
+               p.name as publisher, s.name as series, a.name as arc, c.rating
+        FROM Comic c
+        LEFT JOIN Series s ON c.series_id = s.series_id
+        LEFT JOIN Publisher p ON s.publisher_id = p.publisher_id
+        LEFT JOIN Arc a ON c.arc_id = a.arc_id
+        ORDER BY c.reading_date DESC
+        """
+        cur.execute(query)
+        self.rows = cur.fetchall()
+        conn.close()
+        self.display_rows(self.rows)
+
+    def display_rows(self, rows):
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+        for row in rows:
+            self.tree.insert("", tk.END, values=row)
+
+    def sort_column(self, col, reverse):
+        col_index = self.cols.index(col)
+        try:
+            sorted_rows = sorted(self.rows, key=lambda x: (x[col_index] is None, x[col_index]), reverse=reverse)
+        except TypeError:
+            sorted_rows = sorted(self.rows, key=lambda x: str(x[col_index]), reverse=reverse)
+
+        self.display_rows(sorted_rows)
+        self.sort_orders[col] = not reverse
+        self.tree.heading(col, command=lambda c=col: self.sort_column(c, self.sort_orders[col]))
+
+    def voltar(self):
+        self.master.destroy()
+        if self.back_func:
+            self.back_func()
+
+    def open_dashboard(self):
+        popup = tk.Toplevel(self.master)
+        popup.title("Dashboard")
+        label = tk.Label(popup, text="Abrindo o dashboard...")
+        label.pack(padx=20, pady=20)
+        popup.update()
+        os.startfile(r"C:\CRUD-Dashboard\DashHQs.pbix")
+        popup.after(1000, popup.destroy)
+
+
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = ComicApp(root)
-    root.mainloop()
+    MainMenu()
