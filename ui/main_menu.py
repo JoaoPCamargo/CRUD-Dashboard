@@ -8,12 +8,13 @@ from tkcalendar import DateEntry
 from ui.comic_add import ComicAdd
 from ui.comic_consult import ComicConsult
 from ui.edit_comic import EditComicWindow
-from config import DB_PATH, DASHBOARD_PATH
+from config import DB_PATH, DASHBOARD_PATH, ICON_PATH
 
 class MainMenu:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Menu Principal")
+        self.root.iconbitmap(ICON_PATH)
         self.root.geometry("300x200")
 
         # Título principal
@@ -45,6 +46,7 @@ class MainMenu:
     def open_dashboard(self):
         popup = tk.Toplevel(self.root)
         popup.title("Dashboard")
+        popup.iconbitmap(ICON_PATH)
         label = tk.Label(popup, text="Abrindo o dashboard...")
         label.pack(padx=20, pady=20)
         popup.update()

@@ -3,13 +3,16 @@ import tkinter as tk
 from tkinter import ttk
 from ui.edit_comic import EditComicWindow
 from db.queries import get_all_comics, get_filter_options, get_comics_by_filters
-from config import DASHBOARD_PATH
+from config import DASHBOARD_PATH, ICON_PATH
+from utils.validators import validate_int
+from utils.helpers import rating_to_stars
 
 
 class ComicConsult:
     def __init__(self, master, back_func):
         self.master = master
         self.master.title("Consultar Quadrinhos")
+        self.master.iconbitmap(ICON_PATH)
         self.master.geometry("950x500")
         self.back_func = back_func
 
@@ -34,8 +37,13 @@ class ComicConsult:
 
         # Edição
         tk.Label(filtros_frame, text="Edição:").grid(row=0, column=2, padx=5, pady=5, sticky="w")
-        vcmd = master.register(self.validate_int)
-        self.entry_edicao = tk.Entry(filtros_frame, width=10, validate="key", validatecommand=(vcmd, "%P"))
+        vcmd = master.register(validate_int)
+        self.entry_edicao = tk.Entry(
+            filtros_frame,
+            width=10,
+            validate="key",
+            validatecommand=(vcmd, "%P")
+        )
         self.entry_edicao.grid(row=0, column=3, padx=5, pady=5)
 
         # Série
@@ -77,9 +85,6 @@ class ComicConsult:
 
     # ---------- FUNÇÕES INTERNAS ----------
 
-    def validate_int(self, value):
-        return value == "" or value.isdigit()
-
     def load_filter_options(self):
         series, arcos, editoras = get_filter_options()
         self.combo_serie["values"] = series
@@ -117,8 +122,7 @@ class ComicConsult:
             self.tree.delete(i)
 
         for row in rows:
-            rating = row[7]
-            stars = "—" if rating is None else "★" * rating + "☆" * (5 - rating)
+            stars = rating_to_stars(row[7])
             display_row = row[:7] + (stars,)
             self.tree.insert("", tk.END, values=display_row)
 
@@ -147,6 +151,7 @@ class ComicConsult:
     def open_dashboard(self):
         popup = tk.Toplevel(self.master)
         popup.title("Dashboard")
+        popup.iconbitmap(ICON_PATH)
         tk.Label(popup, text="Abrindo o dashboard...").pack(padx=20, pady=20)
         popup.update()
         os.startfile(DASHBOARD_PATH)

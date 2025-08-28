@@ -2,17 +2,19 @@ import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkcalendar import DateEntry
-from datetime import datetime, date
-from config import DB_PATH
+from datetime import datetime
+from config import DB_PATH, ICON_PATH
 from db.queries import (
     get_comic_by_id, update_comic,
-    get_publishers, get_series, get_arcs, get_comic_publisher
-)
+    get_publishers, get_series, get_arcs, get_comic_publisher)
+from utils.helpers import stars_display, find_index_by_id
+from utils.validators import validate_issue, validate_reading_date, validate_rating
 
 class EditComicWindow:
     def __init__(self, master, comic_id, refresh_func=None):
         self.master = tk.Toplevel(master)
         self.master.title("Editar Quadrinho")
+        self.master.iconbitmap(ICON_PATH)
         self.comic_id = comic_id
         self.refresh_func = refresh_func
 
@@ -48,13 +50,9 @@ class EditComicWindow:
         self.date_entry = DateEntry(self.master, width=12, background='purple', foreground='red', borderwidth=2, year=2025)
         self.date_entry.grid(row=2, column=1, padx=5, pady=5)
         if self.date_val:
-            try:
-                dt = datetime.strptime(self.date_val, "%Y-%m-%d").date()
+            dt = validate_reading_date(self.date_val)
+            if dt:
                 self.date_entry.set_date(dt)
-            except ValueError:
-                self.date_entry.set_date(datetime.today().date())
-        else:
-            self.date_entry.set_date('')  # deixa vazio
 
         # Combos
         tk.Label(self.master, text="Editora:").grid(row=3, column=0, sticky="w")
@@ -75,61 +73,58 @@ class EditComicWindow:
         stars_frame = tk.Frame(self.master)
         stars_frame.grid(row=6, column=1, padx=5, pady=5, sticky="w")
         self.stars = []
-        for i in range(1, 6):
-            lbl = tk.Label(stars_frame, text="☆", font=("Arial", 18))
+        for i, char in enumerate(stars_display(self.rating_var.get()), start=1):
+            lbl = tk.Label(stars_frame, text=char, font=("Arial", 18), fg="gold" if char == "★" else "gray")
             lbl.grid(row=0, column=i, padx=2)
             lbl.bind("<Button-1>", lambda e, n=i: self.set_stars(n))
             self.stars.append(lbl)
-        self.set_stars(self.rating_var.get())
 
         # Botão salvar
-        tk.Button(self.master, text="Salvar Alterações", command=self.save_changes).grid(row=7, column=0, columnspan=2, pady=10)
+        tk.Button(self.master, text="Salvar Alterações", command=self.save_changes).grid(row=7, column=0, columnspan=2, pady=5)
+
+        # Botão excluir (lixeira)
+        tk.Button(self.master, text="🗑", fg="red", command=self.delete_comic).grid(row=7, column=1, columnspan=2, pady=5)
+
 
     # --- Controle de estrelas ---
     def set_stars(self, n):
         self.rating_var.set(n)
-        for i, lbl in enumerate(self.stars, start=1):
-            lbl.config(text="★" if i <= n else "☆", fg="gold" if i <= n else "gray")
+        for lbl, char in zip(self.stars, stars_display(n)):
+            lbl.config(text=char, fg="gold" if char == "★" else "gray")
 
     # --- Carregar editoras, séries e arcos ---
     def load_publishers_series_arcs(self):
         self.publishers = get_publishers()
         self.combo_editora["values"] = [p[1] for p in self.publishers]
         pub_id = get_comic_publisher(self.comic_id)
-        idx = next((i for i, p in enumerate(self.publishers) if p[0] == pub_id), 0)
-        self.combo_editora.current(idx)
+        self.combo_editora.current(find_index_by_id(self.publishers, pub_id))
 
         self.series = get_series()
         self.combo_serie["values"] = [s[1] for s in self.series]
-        idx = next((i for i, s in enumerate(self.series) if s[0] == self.series_id_val), 0)
-        self.combo_serie.current(idx)
+        self.combo_serie.current(find_index_by_id(self.series, self.series_id_val))
 
         self.arcs = get_arcs()
         self.combo_arco["values"] = [a[1] for a in self.arcs]
         if self.arc_id_val:
-            idx = next((i for i, a in enumerate(self.arcs) if a[0] == self.arc_id_val), 0)
-            self.combo_arco.current(idx)
+            self.combo_arco.current(find_index_by_id(self.arcs, self.arc_id_val))
         else:
             self.combo_arco.set('')
 
     # --- Salvar alterações ---
     def save_changes(self):
         title = self.title_entry.get().strip()
-        try:
-            issue = int(self.issue_entry.get())
-        except ValueError:
+        
+        # Número da edição
+        issue = validate_issue(self.issue_entry.get())
+        if issue is None:
             messagebox.showerror("Erro", "Número da edição inválido!")
             return
 
         # Data de leitura
-        date_str = self.date_entry.get()
-        reading_date = None
-        if date_str.strip():
-            try:
-                reading_date = datetime.strptime(date_str, "%m/%d/%y").date()
-            except ValueError:
-                messagebox.showerror("Erro", "Data de leitura inválida!")
-                return
+        reading_date = validate_reading_date(self.date_entry.get())
+        if self.date_entry.get().strip() and reading_date is None:
+            messagebox.showerror("Erro", "Data de leitura inválida!")
+            return
 
         # Série e arco
         series_idx = self.combo_serie.current()
@@ -139,7 +134,7 @@ class EditComicWindow:
         arc_id = self.arcs[arc_idx][0] if arc_idx >= 0 else None
 
         # Avaliação
-        rating = self.rating_var.get() if self.rating_var.get() > 0 else None
+        rating = validate_rating(self.rating_var.get())
 
         # Atualizar banco
         update_comic(self.comic_id, title or None, issue, reading_date, series_id, arc_id, rating)
@@ -148,3 +143,13 @@ class EditComicWindow:
         if self.refresh_func:
             self.refresh_func()
         self.master.destroy()
+
+    def delete_comic(self):
+        answer = messagebox.askyesno("Confirmação", "Tem certeza que deseja excluir este quadrinho?")
+        if answer:
+            from db.queries import delete_comic_by_id
+            delete_comic_by_id(self.comic_id)
+            messagebox.showinfo("Sucesso", "Quadrinho excluído com sucesso!")
+            if self.refresh_func:
+                self.refresh_func()
+            self.master.destroy()

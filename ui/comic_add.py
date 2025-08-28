@@ -1,20 +1,23 @@
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import datetime, date
+from datetime import date
 from tkcalendar import DateEntry
-from config import DASHBOARD_PATH
+from config import DASHBOARD_PATH, ICON_PATH
 from db.queries import (
     get_publishers, insert_publisher,
     get_series_by_publisher, insert_series,
     get_arcs_by_series, insert_arc,
-    insert_comic
-)
+    insert_comic)
+from utils import validators as v
+from utils import helpers as h
+
 
 class ComicAdd:
     def __init__(self, root):
         self.root = root
         self.root.title("Cadastro de Quadrinhos")
+        self.root.iconbitmap(ICON_PATH)
 
         # --- EDITORA ---
         tk.Label(root, text="Editora:").grid(row=0, column=0, sticky="w")
@@ -119,13 +122,14 @@ class ComicAdd:
     def add_publisher(self):
         win = tk.Toplevel(self.root)
         win.title("Nova Editora")
+        win.iconbitmap(ICON_PATH)
         tk.Label(win, text="Nome da Editora:").pack(padx=10, pady=5)
         entry = tk.Entry(win)
         entry.pack(padx=10, pady=5)
 
         def salvar():
             nome = entry.get().strip()
-            if not nome:
+            if not v.is_non_empty(nome):
                 messagebox.showerror("Erro", "Nome da editora não pode ser vazio!", parent=win)
                 return
             try:
@@ -147,6 +151,7 @@ class ComicAdd:
 
         win = tk.Toplevel(self.root)
         win.title("Nova Série")
+        win.iconbitmap(ICON_PATH)
 
         tk.Label(win, text="Nome da Série:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         entry_name = tk.Entry(win)
@@ -166,11 +171,11 @@ class ComicAdd:
 
         def salvar():
             nome = entry_name.get().strip()
-            start_year = int(entry_start_year.get()) if entry_start_year.get().isdigit() else None
-            end_year = int(entry_end_year.get()) if entry_end_year.get().isdigit() else None
-            total_issues = int(entry_total_issues.get()) if entry_total_issues.get().isdigit() else None
+            start_year = v.to_int_or_none(entry_start_year.get())
+            end_year = v.to_int_or_none(entry_end_year.get())
+            total_issues = v.to_int_or_none(entry_total_issues.get())
 
-            if not nome:
+            if not v.is_non_empty(nome):
                 messagebox.showerror("Erro", "Nome da série não pode ser vazio!", parent=win)
                 return
 
@@ -193,6 +198,7 @@ class ComicAdd:
 
         win = tk.Toplevel(self.root)
         win.title("Novo Arco")
+        win.iconbitmap(ICON_PATH)
 
         tk.Label(win, text="Nome do Arco:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         entry_name = tk.Entry(win)
@@ -204,10 +210,9 @@ class ComicAdd:
 
         def salvar():
             nome = entry_name.get().strip()
-            end_issue_str = entry_end.get().strip()
-            end_issue = int(end_issue_str) if end_issue_str.isdigit() else None
+            end_issue = v.to_int_or_none(entry_end.get().strip())
 
-            if not nome:
+            if not v.is_non_empty(nome):
                 messagebox.showerror("Erro", "Nome do arco não pode ser vazio!", parent=win)
                 return
 
@@ -223,23 +228,23 @@ class ComicAdd:
 
     # --- SALVAR QUADRINHO ---
     def save_comic(self):
-        try:
-            issue = int(self.issue_entry.get())
-        except ValueError:
+        issue_str = self.issue_entry.get()
+        if not v.is_integer(issue_str):
             messagebox.showerror("Erro", "Número da edição inválido!")
             return
+        issue = int(issue_str)
 
         title = self.title_entry.get().strip()
+
         date_str = self.date_entry.get().strip()
         reading_date = None
         if date_str:
-            try:
-                reading_date = datetime.strptime(date_str, "%m/%d/%y").date()
-                if reading_date > date.today():
-                    messagebox.showerror("Erro", "A data de leitura não pode ser no futuro!")
-                    return
-            except ValueError:
+            if not v.is_valid_date(date_str):
                 messagebox.showerror("Erro", "Data inválida!")
+                return
+            reading_date = v.parse_date(date_str)
+            if v.is_future_date(reading_date):
+                messagebox.showerror("Erro", "A data de leitura não pode ser no futuro!")
                 return
 
         series_idx = self.series_cb.current()
@@ -256,9 +261,8 @@ class ComicAdd:
         try:
             insert_comic(issue, title if title else None, reading_date, series_id, arc_id, avaliacao)
             messagebox.showinfo("Sucesso", "Quadrinho cadastrado!")
-            self.issue_entry.delete(0, tk.END)
-            self.title_entry.delete(0, tk.END)
-            self.date_entry.delete(0, tk.END)
+
+            h.clear_entries(self.issue_entry, self.title_entry, self.date_entry)
             self.series_cb.set("")
             self.arc_cb.set("")
         except Exception as e:
@@ -268,6 +272,7 @@ class ComicAdd:
     def open_dashboard(self):
         popup = tk.Toplevel(self.root)
         popup.title("Dashboard")
+        popup.iconbitmap(ICON_PATH)
         tk.Label(popup, text="Abrindo o dashboard...").pack(padx=20, pady=20)
         popup.update()
         os.startfile(DASHBOARD_PATH)
@@ -275,8 +280,9 @@ class ComicAdd:
 
     def set_stars(self, n):
         self.avaliacao_var.set(n)
-        for i, lbl in enumerate(self.stars, start=1):
-            lbl.config(text="★" if i <= n else "☆", fg="gold" if i <= n else "gray")
+        stars = h.stars_display(n)
+        for lbl, star in zip(self.stars, stars):
+            lbl.config(text=star, fg="gold" if star == "★" else "gray")
 
     def set_back_func(self, func):
         self.back_func = func
