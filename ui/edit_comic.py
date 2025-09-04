@@ -1,9 +1,7 @@
-import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkcalendar import DateEntry
-from datetime import datetime
-from config import DB_PATH, ICON_PATH
+from config import ICON_PATH
 from db.queries import (
     get_comic_by_id, update_comic,
     get_publishers, get_series, get_arcs, get_comic_publisher)

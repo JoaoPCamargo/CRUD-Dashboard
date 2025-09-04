@@ -1,9 +1,9 @@
-import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import date
 from tkcalendar import DateEntry
-from config import DASHBOARD_PATH, ICON_PATH
+import matplotlib.pyplot as plt
+from config import  ICON_PATH
+from ui.dashboard.main import DashboardMain
 from db.queries import (
     get_publishers, insert_publisher,
     get_series_by_publisher, insert_series,
@@ -75,13 +75,13 @@ class ComicAdd:
             self.stars.append(lbl)
 
         # --- BOTÕES ---
-        self.save_btn = tk.Button(root, text="Cadastrar Quadrinho", command=self.save_comic)
+        self.save_btn = tk.Button(root, text="Cadastrar", command=self.save_comic)
         self.save_btn.grid(row=7, column=0, padx=5, pady=10)
 
         self.dash_btn = tk.Button(root, text="📊", width=3, command=self.open_dashboard)
         self.dash_btn.grid(row=7, column=1, padx=5, pady=10, sticky="w")
 
-        self.back_btn = tk.Button(root, text="Voltar ao Menu", command=self.back_to_menu)
+        self.back_btn = tk.Button(root, text="Voltar", command=self.back_to_menu)
         self.back_btn.grid(row=7, column=2, padx=5, pady=10)
 
         # Carrega dados iniciais
@@ -270,13 +270,20 @@ class ComicAdd:
 
     # --- OUTROS ---
     def open_dashboard(self):
-        popup = tk.Toplevel(self.root)
-        popup.title("Dashboard")
-        popup.iconbitmap(ICON_PATH)
-        tk.Label(popup, text="Abrindo o dashboard...").pack(padx=20, pady=20)
-        popup.update()
-        os.startfile(DASHBOARD_PATH)
-        popup.after(1000, popup.destroy)
+        dash_window = tk.Toplevel(self.root)
+        dash_window.title("Dashboard")
+        dash_window.iconbitmap(ICON_PATH)
+
+        dashboard = DashboardMain(dash_window, back_func=lambda: self.back(dash_window))
+        dashboard.pack(fill="both", expand=True)
+
+        def on_close():
+            plt.close('all')  # fecha todas as figuras matplotlib
+            for child in dashboard.winfo_children():
+                child.destroy()
+            dash_window.destroy()
+
+        dash_window.protocol("WM_DELETE_WINDOW", on_close)
 
     def set_stars(self, n):
         self.avaliacao_var.set(n)

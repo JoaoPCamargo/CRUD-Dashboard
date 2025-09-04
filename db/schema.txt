@@ -2,9 +2,7 @@ CREATE TABLE Publisher (
     publisher_id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name           TEXT NOT NULL UNIQUE
 );
-
 CREATE TABLE sqlite_sequence(name,seq);
-
 CREATE TABLE Series (
     series_id      INTEGER PRIMARY KEY AUTOINCREMENT,
     name           TEXT NOT NULL,
@@ -27,7 +25,21 @@ CREATE TABLE Comic (
     title          TEXT,
     reading_date   DATE,
     series_id      INTEGER NOT NULL,
-    arc_id         INTEGER, 
-    rating 	   INTEGER CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
+    arc_id         INTEGER, rating INTEGER
+    CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
     FOREIGN KEY (series_id) REFERENCES Series(series_id),
     FOREIGN KEY (arc_id) REFERENCES Arc(arc_id)
+);
+CREATE TABLE MangaSeries (
+    manga_series_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name              TEXT NOT NULL UNIQUE,
+    author            TEXT NOT NULL
+, total_volumes INTEGER);
+CREATE TABLE Manga (
+    manga_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    volume            INTEGER NOT NULL,
+    reading_date      DATE,
+    rating            INTEGER CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
+    manga_series_id   INTEGER NOT NULL,
+    FOREIGN KEY (manga_series_id) REFERENCES MangaSeries(manga_series_id)
+);
